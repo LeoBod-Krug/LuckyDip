@@ -38,6 +38,8 @@
         body.is-fullscreen #headerLogoIcon { font-size: 1.75rem; }
         body.is-fullscreen #siteTitle { font-size: 1.875rem; }
         body.is-fullscreen #siteSubtitle { font-size: 1rem; }
+        body.is-fullscreen .header-icon-btn { padding: 0.875rem; }
+        body.is-fullscreen .header-icon-btn i { font-size: 1.15rem; }
     </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
@@ -60,7 +62,7 @@
 
         <div class="flex items-center space-x-2">
             <div class="relative">
-                <button id="backgroundBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Set a background image">
+                <button id="backgroundBtn" class="header-icon-btn p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Set a background image">
                     <i class="fa-solid fa-image text-sm"></i>
                 </button>
                 <button id="bgRemoveBtn" class="hidden flex absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 hover:bg-rose-600 text-white items-center justify-center shadow" title="Remove background image">
@@ -68,13 +70,16 @@
                 </button>
             </div>
             <input type="file" id="bgImageInput" accept="image/*" class="hidden">
-            <button id="shareBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Share Wheel">
+            <button id="muteBtn" class="header-icon-btn p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Mute sound effects">
+                <i id="muteBtnIcon" class="fa-solid fa-volume-high text-sm"></i>
+            </button>
+            <button id="shareBtn" class="header-icon-btn p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Share Wheel">
                 <i class="fa-solid fa-share-nodes text-sm"></i>
             </button>
-            <button id="fullscreenBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Toggle Fullscreen">
+            <button id="fullscreenBtn" class="header-icon-btn p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Toggle Fullscreen">
                 <i class="fa-solid fa-expand text-sm"></i>
             </button>
-            <button id="themeToggleBtn" class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Toggle Theme">
+            <button id="themeToggleBtn" class="header-icon-btn p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Toggle Theme">
                 <i class="fa-solid fa-moon text-sm dark:hidden"></i>
                 <i class="fa-solid fa-sun text-sm hidden dark:inline text-amber-400"></i>
             </button>
@@ -1221,6 +1226,7 @@
             document.getElementById('settingSound').onchange = (e) => {
                 state.settings.sound = e.target.checked;
                 saveToLocalStorage();
+                updateMuteButtonIcon();
             };
 
             document.getElementById('settingRemoveWinner').checked = state.settings.removeWinner;
@@ -1359,6 +1365,23 @@
             const themeToggleBtn = document.getElementById('themeToggleBtn');
             themeToggleBtn.onclick = () => {
                 document.documentElement.classList.toggle('dark');
+            };
+
+            // Mute Button — toggles the same sound setting as Settings > Sound Effects
+            const muteBtn = document.getElementById('muteBtn');
+            const muteBtnIcon = document.getElementById('muteBtnIcon');
+            function updateMuteButtonIcon() {
+                const soundOn = state.settings.sound;
+                muteBtnIcon.className = soundOn ? 'fa-solid fa-volume-high text-sm' : 'fa-solid fa-volume-xmark text-sm';
+                muteBtn.title = soundOn ? 'Mute sound effects' : 'Unmute sound effects';
+            }
+            updateMuteButtonIcon();
+            muteBtn.onclick = () => {
+                state.settings.sound = !state.settings.sound;
+                saveToLocalStorage();
+                updateMuteButtonIcon();
+                const settingSoundCheckbox = document.getElementById('settingSound');
+                if (settingSoundCheckbox) settingSoundCheckbox.checked = state.settings.sound;
             };
 
             // Fullscreen
