@@ -43,7 +43,9 @@
 
         /* Presenter Mode — freezes editing controls but leaves spinning available */
         body.is-locked #quickModeView,
-        body.is-locked #advancedModeView,
+        body.is-locked #advancedItemsList,
+        body.is-locked #distributeEvenlyBtn,
+        body.is-locked #addAdvancedItemBtn,
         body.is-locked #resetStockBtn,
         body.is-locked #clearHistoryBtn {
             pointer-events: none;
@@ -52,6 +54,13 @@
         }
         body.is-locked #wheelNameInput { pointer-events: none; opacity: 0.75; }
         body.is-locked #settingsModalBtn { pointer-events: none; opacity: 0.35; }
+        /* Collapse toggle and the collapsed name-only list stay fully usable and legible while locked */
+        body.is-locked #collapseItemsBtn,
+        body.is-locked #advancedItemsCollapsedList {
+            pointer-events: auto;
+            opacity: 1;
+            filter: none;
+        }
     </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
@@ -83,8 +92,7 @@
                 <i class="fa-solid fa-expand text-sm"></i>
             </button>
             <button id="themeToggleBtn" class="header-icon-btn p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition" title="Toggle Theme">
-                <i class="fa-solid fa-moon text-sm dark:hidden"></i>
-                <i class="fa-solid fa-sun text-sm hidden dark:inline text-amber-400"></i>
+                <i class="fa-solid fa-moon text-sm transition-colors dark:text-amber-400 dark:drop-shadow-[0_0_4px_rgba(251,191,36,0.6)]"></i>
             </button>
 
             <div class="relative">
@@ -99,10 +107,6 @@
                     <button id="bgRemoveBtn" class="hidden flex w-full items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-sm font-medium text-rose-500 transition text-left">
                         <i class="fa-solid fa-xmark w-4 text-center"></i>
                         <span>Remove Background Image</span>
-                    </button>
-                    <button id="shareBtn" class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 transition text-left">
-                        <i class="fa-solid fa-share-nodes w-4 text-center"></i>
-                        <span>Share Wheel</span>
                     </button>
                     <button id="shortcutsBtn" class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium text-slate-600 dark:text-slate-300 transition text-left">
                         <i class="fa-solid fa-keyboard w-4 text-center"></i>
@@ -1004,6 +1008,7 @@
         // removes its entry from history. Single-level undo (no stack).
         function undoLastSpin() {
             if (!state.lastSpin || state.isSpinning) return;
+            if (state.autoSpin.active) stopAutoSpin();
             state.lastSpin.quantities.forEach(q => {
                 const itemRef = state.items.find(i => i.id === q.id);
                 if (itemRef) itemRef.remainingQuantity = q.prevRemaining;
@@ -1628,22 +1633,6 @@
             document.addEventListener('fullscreenchange', () => {
                 document.body.classList.toggle('is-fullscreen', !!document.fullscreenElement);
             });
-
-            // Share Button
-            document.getElementById('shareBtn').onclick = () => {
-                const payload = JSON.stringify({ name: state.wheelName, items: state.items });
-                const encoded = btoa(payload);
-                const shareUrl = `${window.location.origin}${window.location.pathname}?wheel=${encoded}`;
-                
-                const tempInput = document.createElement('input');
-                document.body.appendChild(tempInput);
-                tempInput.value = shareUrl;
-                tempInput.select();
-                document.execCommand('copy');
-                document.body.removeChild(tempInput);
-
-                alert('Shareable link copied to clipboard!');
-            };
         });
     </script>
 </body>
