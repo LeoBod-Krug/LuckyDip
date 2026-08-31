@@ -326,6 +326,10 @@
                         <span>Mystery Mode (hide prize names)</span>
                         <input type="checkbox" id="settingHideNames" class="w-4 h-4 accent-purple-600 rounded">
                     </label>
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span>Equal-Sized Slices (visual only)</span>
+                        <input type="checkbox" id="settingEqualSlices" class="w-4 h-4 accent-purple-600 rounded">
+                    </label>
                 </div>
 
                 <hr class="border-slate-200 dark:border-slate-800">
@@ -468,7 +472,8 @@
                 autoSpinsTotal: 10,
                 autoInterval: 3,
                 locked: false,
-                hideNames: false
+                hideNames: false,
+                equalSlices: false
             },
             turnIndex: 0,
             isSpinning: false,
@@ -633,6 +638,18 @@
             });
         }
 
+        // Returns the angle (radians) a given item's wheel slice should occupy.
+        // Actual spin probability always follows the real weights (see startSpin) —
+        // this only controls how big the slice is drawn, so Equal-Sized Slices is
+        // purely a visual setting.
+        function getSliceAngleFor(item, activeItems, totalWeight) {
+            if (state.settings.equalSlices) {
+                return (2 * Math.PI) / activeItems.length;
+            }
+            const w = Math.max(0.1, Number(item.weight) || 1);
+            return (w / totalWeight) * (2 * Math.PI);
+        }
+
         function drawWheel() {
             const activeItems = getActiveItems();
             const width = wheelCanvas.width / window.devicePixelRatio;
@@ -665,8 +682,7 @@
             let startAngle = state.currentRotation;
 
             activeItems.forEach((item, index) => {
-                const weight = Math.max(0.1, Number(item.weight) || 1);
-                const sliceAngle = (weight / totalWeight) * (2 * Math.PI);
+                const sliceAngle = getSliceAngleFor(item, activeItems, totalWeight);
                 const endAngle = startAngle + sliceAngle;
 
                 // Draw slice
@@ -879,8 +895,7 @@
             let runningAngle = currentAngleMod;
 
             activeItems.forEach(item => {
-                const w = Math.max(0.1, Number(item.weight) || 1);
-                const sAngle = (w / totalWeight) * (2 * Math.PI);
+                const sAngle = getSliceAngleFor(item, activeItems, totalWeight);
                 if (item.id === winningItem.id) {
                     targetSliceStart = runningAngle;
                     targetSliceEnd = runningAngle + sAngle;
@@ -1439,6 +1454,13 @@
                 state.settings.hideNames = e.target.checked;
                 saveToLocalStorage();
                 syncUIFromState();
+                drawWheel();
+            };
+
+            document.getElementById('settingEqualSlices').checked = state.settings.equalSlices;
+            document.getElementById('settingEqualSlices').onchange = (e) => {
+                state.settings.equalSlices = e.target.checked;
+                saveToLocalStorage();
                 drawWheel();
             };
 
