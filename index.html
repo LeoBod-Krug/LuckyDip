@@ -358,7 +358,7 @@
 
     <!-- Winner Modal -->
     <div id="winnerModal" class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md hidden flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-8 shadow-2xl relative text-center">
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-lg rounded-3xl p-8 shadow-2xl relative text-center uppercase">
             
             <!-- X Close Button -->
             <button id="winnerModalCloseBtn" class="absolute top-5 right-5 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition">
@@ -370,11 +370,12 @@
                 <i class="fa-solid fa-trophy"></i>
             </div>
 
-            <p class="text-sm font-bold tracking-widest text-purple-600 dark:text-purple-400 uppercase mb-3">You Won</p>
-            <div class="flex items-center justify-center gap-4 mb-8 px-2">
+            <p class="text-sm font-bold tracking-widest text-purple-600 dark:text-purple-400 mb-3">You Won</p>
+            <div class="flex items-center justify-center gap-4 mb-3 px-2">
                 <img id="winnerModalImage" src="" alt="" class="hidden w-24 h-16 rounded-xl object-cover border-2 border-white dark:border-slate-800 shadow-lg shrink-0">
-                <h2 id="winnerModalTitle" class="text-4xl font-extrabold tracking-tight truncate"></h2>
+                <h2 id="winnerModalTitle" class="text-3xl font-extrabold tracking-tight truncate"></h2>
             </div>
+            <p id="winnerModalCountdown" class="text-xs font-semibold text-slate-400 mb-6"></p>
 
             <!-- Action Button -->
             <div class="space-y-2">
@@ -437,7 +438,7 @@
             "Career Fair Prizes": [
                 { name: "Sticker", quantity: "125", weight: 74 },
                 { name: "Pen", quantity: "23", weight: 14 },
-                { name: "$5 Grab Voucher", quantity: "5", weight: 9 },
+                { name: "$5 Grab Voucher", quantity: "15", weight: 9 },
                 { name: "Tote Bag", quantity: "4", weight: 2 },
                 { name: "$50 Grab Voucher", quantity: "1", weight: 1 }
             ],
@@ -555,7 +556,7 @@
         const advancedItemsList = document.getElementById('advancedItemsList');
         let advancedItemsCollapsed = false;
         let currentImageEditItemId = null;
-        let winnerModalAutoCloseTimer = null;
+        let winnerModalCountdownInterval = null;
         const itemImageInput = document.getElementById('itemImageInput');
         const inventoryStockList = document.getElementById('inventoryStockList');
         const historyList = document.getElementById('historyList');
@@ -948,6 +949,35 @@
             requestAnimationFrame(animateSpin);
         }
 
+        // Runs the "closing in Ns..." countdown shown in the winner popup, and
+        // hides the popup automatically once it reaches zero.
+        function startWinnerModalCountdown(seconds) {
+            clearWinnerModalCountdown();
+            let remaining = seconds;
+            const el = document.getElementById('winnerModalCountdown');
+            if (el) el.textContent = `Closing in ${remaining}s...`;
+            winnerModalCountdownInterval = setInterval(() => {
+                remaining -= 1;
+                if (remaining <= 0) {
+                    clearWinnerModalCountdown();
+                    winnerModal.classList.add('hidden');
+                } else if (el) {
+                    el.textContent = `Closing in ${remaining}s...`;
+                }
+            }, 1000);
+        }
+
+        // Stops the countdown (used whenever the popup is closed manually) and
+        // clears its text.
+        function clearWinnerModalCountdown() {
+            if (winnerModalCountdownInterval) {
+                clearInterval(winnerModalCountdownInterval);
+                winnerModalCountdownInterval = null;
+            }
+            const el = document.getElementById('winnerModalCountdown');
+            if (el) el.textContent = '';
+        }
+
         function onSpinComplete(winners) {
             state.isSpinning = false;
             centerSpinBtn.disabled = false;
@@ -1006,14 +1036,12 @@
             }
             winnerModal.classList.remove('hidden');
 
-            // Auto-close the popup after 5 seconds — only for manual spins;
-            // Auto-Spin already manages its own timing between spins below.
-            if (winnerModalAutoCloseTimer) clearTimeout(winnerModalAutoCloseTimer);
+            // Auto-close the popup after 5 seconds, with a visible countdown —
+            // only for manual spins; Auto-Spin already manages its own timing
+            // between spins below.
+            clearWinnerModalCountdown();
             if (!state.autoSpin.active) {
-                winnerModalAutoCloseTimer = setTimeout(() => {
-                    winnerModal.classList.add('hidden');
-                    winnerModalAutoCloseTimer = null;
-                }, 5000);
+                startWinnerModalCountdown(5);
             }
 
             // Handle Auto-Spin continuation
@@ -1257,7 +1285,7 @@
                 }
                 if (e.code === 'Escape') {
                     if (document.fullscreenElement) document.exitFullscreen();
-                    if (winnerModalAutoCloseTimer) { clearTimeout(winnerModalAutoCloseTimer); winnerModalAutoCloseTimer = null; }
+                    clearWinnerModalCountdown();
                     winnerModal.classList.add('hidden');
                     presetsModal.classList.add('hidden');
                     settingsModal.classList.add('hidden');
@@ -1269,12 +1297,12 @@
 
             // Winner Modal Action
             winnerModalSpinAgainBtn.onclick = () => {
-                if (winnerModalAutoCloseTimer) { clearTimeout(winnerModalAutoCloseTimer); winnerModalAutoCloseTimer = null; }
+                clearWinnerModalCountdown();
                 winnerModal.classList.add('hidden');
                 startSpin();
             };
             winnerModalCloseBtn.onclick = () => {
-                if (winnerModalAutoCloseTimer) { clearTimeout(winnerModalAutoCloseTimer); winnerModalAutoCloseTimer = null; }
+                clearWinnerModalCountdown();
                 winnerModal.classList.add('hidden');
             };
 
