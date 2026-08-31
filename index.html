@@ -322,6 +322,10 @@
                         <span>Turn-Taking Mode</span>
                         <input type="checkbox" id="settingTurnTaking" class="w-4 h-4 accent-purple-600 rounded">
                     </label>
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span>Mystery Mode (hide prize names)</span>
+                        <input type="checkbox" id="settingHideNames" class="w-4 h-4 accent-purple-600 rounded">
+                    </label>
                 </div>
 
                 <hr class="border-slate-200 dark:border-slate-800">
@@ -426,6 +430,13 @@
         const PALETTE = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#6366f1', '#14b8a6', '#f43f5e', '#84cc16', '#a855f7'];
 
         const PresetsData = {
+            "Career Fair Prizes": [
+                { name: "Sticker", quantity: "125", weight: 74 },
+                { name: "Pen", quantity: "23", weight: 14 },
+                { name: "$5 Grab Voucher", quantity: "5", weight: 9 },
+                { name: "Tote Bag", quantity: "4", weight: 2 },
+                { name: "$50 Grab Voucher", quantity: "1", weight: 1 }
+            ],
             "Yes / No": ["Yes", "No"],
             "Numbers 1–10": Array.from({length: 10}, (_, i) => String(i + 1)),
             "Numbers 1–20": Array.from({length: 20}, (_, i) => String(i + 1)),
@@ -456,7 +467,8 @@
                 turnTaking: false,
                 autoSpinsTotal: 10,
                 autoInterval: 3,
-                locked: false
+                locked: false,
+                hideNames: false
             },
             turnIndex: 0,
             isSpinning: false,
@@ -538,6 +550,7 @@
         const advancedItemsList = document.getElementById('advancedItemsList');
         let advancedItemsCollapsed = false;
         let currentImageEditItemId = null;
+        let winnerModalAutoCloseTimer = null;
         const itemImageInput = document.getElementById('itemImageInput');
         const inventoryStockList = document.getElementById('inventoryStockList');
         const historyList = document.getElementById('historyList');
@@ -677,7 +690,9 @@
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
                 ctx.shadowBlur = 4;
 
-                const displayName = item.name.length > 16 ? item.name.substring(0, 14) + '...' : item.name;
+                const displayName = state.settings.hideNames
+                    ? `Prize ${state.items.indexOf(item) + 1}`
+                    : (item.name.length > 16 ? item.name.substring(0, 14) + '...' : item.name);
                 ctx.fillText(displayName, radius - 30, 5);
                 ctx.restore();
 
@@ -767,7 +782,7 @@
         }
 
         // Builds the compact "collapsed" list — just a colour swatch and each
-        // item's full, untruncated name.
+        // item's full, untruncated name (or "Prize N" while Mystery Mode is on).
         function renderAdvancedItemsCollapsedList() {
             const el = document.getElementById('advancedItemsCollapsedList');
             if (!el) return;
@@ -775,12 +790,15 @@
                 el.innerHTML = `<div class="text-xs text-slate-400 text-center py-2">No items configured</div>`;
                 return;
             }
-            el.innerHTML = state.items.map(item => `
+            el.innerHTML = state.items.map((item, idx) => {
+                const displayName = state.settings.hideNames ? `Prize ${idx + 1}` : (item.name || 'Unnamed');
+                return `
                 <div class="flex items-center space-x-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
                     <span class="w-3 h-3 rounded-full shrink-0" style="background-color: ${item.color}"></span>
-                    <span class="text-xs font-medium text-slate-700 dark:text-slate-300 break-words">${item.name || 'Unnamed'}</span>
+                    <span class="text-xs font-medium text-slate-700 dark:text-slate-300 break-words">${displayName}</span>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         // Shows either the full editable item cards or the compact name-only list,
@@ -972,6 +990,16 @@
                 winnerModalImage.src = '';
             }
             winnerModal.classList.remove('hidden');
+
+            // Auto-close the popup after 5 seconds — only for manual spins;
+            // Auto-Spin already manages its own timing between spins below.
+            if (winnerModalAutoCloseTimer) clearTimeout(winnerModalAutoCloseTimer);
+            if (!state.autoSpin.active) {
+                winnerModalAutoCloseTimer = setTimeout(() => {
+                    winnerModal.classList.add('hidden');
+                    winnerModalAutoCloseTimer = null;
+                }, 5000);
+            }
 
             // Handle Auto-Spin continuation
             if (state.autoSpin.active) {
@@ -1214,6 +1242,7 @@
                 }
                 if (e.code === 'Escape') {
                     if (document.fullscreenElement) document.exitFullscreen();
+                    if (winnerModalAutoCloseTimer) { clearTimeout(winnerModalAutoCloseTimer); winnerModalAutoCloseTimer = null; }
                     winnerModal.classList.add('hidden');
                     presetsModal.classList.add('hidden');
                     settingsModal.classList.add('hidden');
@@ -1225,10 +1254,12 @@
 
             // Winner Modal Action
             winnerModalSpinAgainBtn.onclick = () => {
+                if (winnerModalAutoCloseTimer) { clearTimeout(winnerModalAutoCloseTimer); winnerModalAutoCloseTimer = null; }
                 winnerModal.classList.add('hidden');
                 startSpin();
             };
             winnerModalCloseBtn.onclick = () => {
+                if (winnerModalAutoCloseTimer) { clearTimeout(winnerModalAutoCloseTimer); winnerModalAutoCloseTimer = null; }
                 winnerModal.classList.add('hidden');
             };
 
@@ -1324,16 +1355,20 @@
                         const arr = PresetsData[name];
                         state.wheelName = name;
                         const evenShare = arr.length > 0 ? 100 / arr.length : 100;
-                        state.items = arr.map((itemStr, idx) => ({
-                            id: Date.now() + idx,
-                            name: itemStr,
-                            color: PALETTE[idx % PALETTE.length],
-                            weight: evenShare,
-                            quantity: "10",
-                            remainingQuantity: "10",
-                            enabled: true,
-                            image: null
-                        }));
+                        state.items = arr.map((entry, idx) => {
+                            const isDetailed = typeof entry === 'object' && entry !== null;
+                            const qty = isDetailed ? String(entry.quantity) : "10";
+                            return {
+                                id: Date.now() + idx,
+                                name: isDetailed ? entry.name : entry,
+                                color: PALETTE[idx % PALETTE.length],
+                                weight: isDetailed ? entry.weight : evenShare,
+                                quantity: qty,
+                                remainingQuantity: qty,
+                                enabled: true,
+                                image: null
+                            };
+                        });
                         saveToLocalStorage();
                         syncUIFromState();
                         drawWheel();
@@ -1397,6 +1432,14 @@
             document.getElementById('settingConfetti').onchange = (e) => {
                 state.settings.confetti = e.target.checked;
                 saveToLocalStorage();
+            };
+
+            document.getElementById('settingHideNames').checked = state.settings.hideNames;
+            document.getElementById('settingHideNames').onchange = (e) => {
+                state.settings.hideNames = e.target.checked;
+                saveToLocalStorage();
+                syncUIFromState();
+                drawWheel();
             };
 
             // Start Auto-Spin from Modal
