@@ -299,6 +299,15 @@
                     <input type="range" id="settingDuration" min="1" max="30" value="5" class="w-full accent-purple-600">
                 </div>
 
+                <!-- Winner Popup Duration -->
+                <div>
+                    <label class="block font-medium mb-1 flex justify-between">
+                        <span>Winner Popup Duration</span>
+                        <span id="popupDurationVal" class="text-purple-600 font-mono">5s</span>
+                    </label>
+                    <input type="range" id="settingPopupDuration" min="1" max="60" value="5" class="w-full accent-purple-600">
+                </div>
+
                 <!-- Winners Per Spin -->
                 <div>
                     <label class="block font-medium mb-1">Winners Per Spin</label>
@@ -477,7 +486,8 @@
                 autoInterval: 3,
                 locked: false,
                 hideNames: false,
-                equalSlices: false
+                equalSlices: false,
+                popupDuration: 5
             },
             turnIndex: 0,
             isSpinning: false,
@@ -1066,12 +1076,12 @@
             }
             winnerModal.classList.remove('hidden');
 
-            // Auto-close the popup after 5 seconds, with a visible countdown —
-            // only for manual spins; Auto-Spin already manages its own timing
-            // between spins below.
+            // Auto-close the popup after the configured duration, with a visible
+            // countdown — only for manual spins; Auto-Spin already manages its own
+            // timing between spins below.
             clearWinnerModalCountdown();
             if (!state.autoSpin.active) {
-                startWinnerModalCountdown(5);
+                startWinnerModalCountdown(Number(state.settings.popupDuration) || 5);
             }
 
             // Handle Auto-Spin continuation
@@ -1494,6 +1504,16 @@
             settingDuration.oninput = (e) => {
                 state.settings.duration = e.target.value;
                 spinDurationVal.textContent = e.target.value + 's';
+                saveToLocalStorage();
+            };
+
+            const settingPopupDuration = document.getElementById('settingPopupDuration');
+            const popupDurationVal = document.getElementById('popupDurationVal');
+            settingPopupDuration.value = state.settings.popupDuration;
+            popupDurationVal.textContent = state.settings.popupDuration + 's';
+            settingPopupDuration.oninput = (e) => {
+                state.settings.popupDuration = e.target.value;
+                popupDurationVal.textContent = e.target.value + 's';
                 saveToLocalStorage();
             };
 
