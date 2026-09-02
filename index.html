@@ -129,12 +129,12 @@
         <div id="wheelPanel" class="lg:col-span-7 flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm relative min-h-[640px] transition-all">
             
             <!-- Session Title Display -->
-            <div class="w-full flex items-center justify-between mb-4">
-                <div class="flex items-center space-x-2">
+            <div class="w-full grid grid-cols-3 items-center mb-4">
+                <div class="flex items-center justify-self-start">
                     <input type="text" id="wheelNameInput" value="Spin the Wheel" class="font-bold text-xl bg-transparent border-b border-transparent hover:border-slate-300 focus:border-purple-500 outline-none px-1 rounded transition max-w-[280px]">
-                    <span class="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 rounded-full font-medium" id="turnBannerBadge">Single Winner</span>
                 </div>
-                <div class="flex items-center space-x-1">
+                <span class="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 rounded-full font-medium justify-self-center" id="turnBannerBadge">Prize</span>
+                <div class="flex items-center space-x-1 justify-self-end">
                     <button id="settingsModalBtn" class="p-2 rounded-xl text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Settings">
                         <i class="fa-solid fa-gear text-lg"></i>
                     </button>
