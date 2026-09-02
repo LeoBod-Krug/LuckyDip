@@ -342,6 +342,10 @@
                         <span>Equal-Sized Slices (visual only)</span>
                         <input type="checkbox" id="settingEqualSlices" class="w-4 h-4 accent-purple-600 rounded">
                     </label>
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span>Keep sold-out prizes on the wheel (0% chance)</span>
+                        <input type="checkbox" id="settingKeepZeroStock" class="w-4 h-4 accent-purple-600 rounded">
+                    </label>
                 </div>
 
                 <hr class="border-slate-200 dark:border-slate-800">
@@ -487,7 +491,8 @@
                 locked: false,
                 hideNames: false,
                 equalSlices: false,
-                popupDuration: 5
+                popupDuration: 5,
+                keepZeroStockOnWheel: false
             },
             turnIndex: 0,
             isSpinning: false,
@@ -646,6 +651,7 @@
         function getActiveItems() {
             return state.items.filter(item => {
                 if (!item.enabled || item.name.trim() === '') return false;
+                if (state.settings.keepZeroStockOnWheel) return true;
                 const rem = item.remainingQuantity !== undefined ? item.remainingQuantity : item.quantity;
                 if (rem === "Unlimited" || rem === "") return true;
                 const parsed = parseInt(rem);
@@ -653,16 +659,40 @@
             });
         }
 
+        // Returns the weight actually used for odds/slice-size. Two things happen here:
+        // 1) A manually-typed 0% is respected as a real zero (plain `Number(x) || 1`
+        //    treats 0 as falsy and would wrongly default it back to 1).
+        // 2) If "Keep sold-out prizes on the wheel" is on, a depleted item's weight
+        //    is forced to 0 regardless of what's typed in its Chance field, so it
+        //    stays visible but can never actually be picked.
+        function getEffectiveWeight(item) {
+            if (state.settings.keepZeroStockOnWheel) {
+                const rem = item.remainingQuantity !== undefined ? item.remainingQuantity : item.quantity;
+                if (rem !== "Unlimited" && rem !== "") {
+                    const parsed = parseInt(rem);
+                    if (!isNaN(parsed) && parsed <= 0) return 0;
+                }
+            }
+            const w = Number(item.weight);
+            return Number.isFinite(w) ? w : 1;
+        }
+
         // Returns the angle (radians) a given item's wheel slice should occupy.
         // Actual spin probability always follows the real weights (see startSpin) —
         // this only controls how big the slice is drawn, so Equal-Sized Slices is
-        // purely a visual setting.
+        // purely a visual setting. A 0%-effective item (sold out, or manually set
+        // to 0%) still gets a thin visible sliver rather than vanishing entirely,
+        // carved out of the circle so the other slices still sum to exactly 360°.
         function getSliceAngleFor(item, activeItems, totalWeight) {
             if (state.settings.equalSlices) {
                 return (2 * Math.PI) / activeItems.length;
             }
-            const w = Math.max(0.1, Number(item.weight) || 1);
-            return (w / totalWeight) * (2 * Math.PI);
+            const SLIVER = (2 * Math.PI) * 0.015;
+            const w = getEffectiveWeight(item);
+            if (w <= 0) return SLIVER;
+            const zeroCount = activeItems.filter(i => getEffectiveWeight(i) <= 0).length;
+            const availableAngle = (2 * Math.PI) - (zeroCount * SLIVER);
+            return totalWeight > 0 ? (w / totalWeight) * availableAngle : availableAngle / Math.max(1, activeItems.length - zeroCount);
         }
 
         function drawWheel() {
@@ -693,7 +723,7 @@
                 return;
             }
 
-            const totalWeight = activeItems.reduce((sum, item) => sum + Math.max(0.1, Number(item.weight) || 1), 0);
+            const totalWeight = activeItems.reduce((sum, item) => sum + Math.max(0, getEffectiveWeight(item)), 0);
             let startAngle = state.currentRotation;
 
             activeItems.forEach((item, index) => {
@@ -749,7 +779,7 @@
         function applyWeightChange(changedId, newPercent) {
             const item = state.items.find(i => i.id === changedId);
             if (!item) return;
-            item.weight = Math.max(1, Math.min(99, Math.round(newPercent)));
+            item.weight = Math.max(0, Math.min(100, Math.round(newPercent)));
         }
 
         // Sum of every item's configured percent.
@@ -796,14 +826,16 @@
         // rebuilding the DOM — so typing in a field isn't interrupted.
         function updateWeightFieldsAndLabels(excludeId) {
             const activeItems = getActiveItems();
-            const totalActiveWeight = activeItems.reduce((sum, i) => sum + Math.max(0.1, Number(i.weight) || 1), 0);
+            const totalActiveWeight = activeItems.reduce((sum, i) => sum + Math.max(0, getEffectiveWeight(i)), 0);
             state.items.forEach(item => {
                 const label = document.querySelector(`.pct-label[data-id="${item.id}"]`);
                 if (label) {
                     const isActive = activeItems.some(a => a.id === item.id);
                     if (isActive && totalActiveWeight > 0) {
-                        const w = Math.max(0.1, Number(item.weight) || 1);
+                        const w = Math.max(0, getEffectiveWeight(item));
                         label.textContent = Math.round((w / totalActiveWeight) * 100) + '%';
+                    } else if (isActive) {
+                        label.textContent = '0%';
                     } else {
                         label.textContent = '—';
                     }
@@ -910,15 +942,15 @@
             updateUndoButtonState();
 
             // Determine winner using crypto random source respecting weights
-            const totalWeight = activeItems.join ? activeItems.reduce((sum, i) => sum + Math.max(0.1, Number(i.weight) || 1), 0) : 1;
+            const totalWeight = activeItems.reduce((sum, i) => sum + Math.max(0, getEffectiveWeight(i)), 0);
             const randArr = new Uint32Array(1);
             window.crypto.getRandomValues(randArr);
             let randomVal = (randArr[0] / (0xffffffff + 1)) * totalWeight;
 
-            let winningItem = activeItems[0];
+            let winningItem = activeItems.find(i => getEffectiveWeight(i) > 0) || activeItems[0];
             let accumulated = 0;
             for (const item of activeItems) {
-                accumulated += Math.max(0.1, Number(item.weight) || 1);
+                accumulated += Math.max(0, getEffectiveWeight(item));
                 if (randomVal <= accumulated) {
                     winningItem = item;
                     break;
@@ -1141,13 +1173,15 @@
 
             // Sync Advanced List
             const activeIdsForPct = new Set(getActiveItems().map(i => i.id));
-            const totalActiveWeightForPct = getActiveItems().reduce((sum, i) => sum + Math.max(0.1, Number(i.weight) || 1), 0);
+            const totalActiveWeightForPct = getActiveItems().reduce((sum, i) => sum + Math.max(0, getEffectiveWeight(i)), 0);
 
             advancedItemsList.innerHTML = state.items.map((item, idx) => {
-                const weightVal = Math.min(99, Math.max(1, Math.round(Number(item.weight) || 1)));
+                const rawWeight = Number(item.weight);
+                const weightVal = Math.min(100, Math.max(0, Math.round(Number.isFinite(rawWeight) ? rawWeight : 1)));
                 const isActive = activeIdsForPct.has(item.id);
-                const pctLabel = (isActive && totalActiveWeightForPct > 0)
-                    ? Math.round((Math.max(0.1, Number(item.weight) || 1) / totalActiveWeightForPct) * 100) + '%'
+                const effW = Math.max(0, getEffectiveWeight(item));
+                const pctLabel = isActive
+                    ? (totalActiveWeightForPct > 0 ? Math.round((effW / totalActiveWeightForPct) * 100) + '%' : '0%')
                     : '—';
                 return `
                 <div class="p-3.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl space-y-2.5">
@@ -1167,7 +1201,7 @@
                     </div>
                     <div class="flex items-center space-x-2.5 pl-1">
                         <span class="text-xs text-slate-400 shrink-0">Chance</span>
-                        <input type="number" min="1" max="99" step="1" value="${weightVal}" data-id="${item.id}" class="item-weight w-20 shrink-0 bg-slate-200/60 dark:bg-slate-700/60 text-sm font-semibold px-1.5 py-1.5 rounded-xl text-center outline-none" title="Type the exact percent chance for this item">
+                        <input type="number" min="0" max="100" step="1" value="${weightVal}" data-id="${item.id}" class="item-weight w-20 shrink-0 bg-slate-200/60 dark:bg-slate-700/60 text-sm font-semibold px-1.5 py-1.5 rounded-xl text-center outline-none" title="Type the exact percent chance for this item — 0 is allowed">
                         <span class="pct-label font-mono font-bold text-xs text-purple-600 dark:text-purple-400 w-10 text-right shrink-0" data-id="${item.id}">${pctLabel}</span>
                     </div>
                 </div>
@@ -1248,7 +1282,7 @@
                 el.oninput = (e) => {
                     const id = parseInt(e.target.dataset.id);
                     const val = parseInt(e.target.value);
-                    if (!isNaN(val) && val > 0) {
+                    if (!isNaN(val) && val >= 0) {
                         applyWeightChange(id, val);
                         saveToLocalStorage();
                         drawWheel();
@@ -1548,6 +1582,14 @@
             document.getElementById('settingEqualSlices').onchange = (e) => {
                 state.settings.equalSlices = e.target.checked;
                 saveToLocalStorage();
+                drawWheel();
+            };
+
+            document.getElementById('settingKeepZeroStock').checked = state.settings.keepZeroStockOnWheel;
+            document.getElementById('settingKeepZeroStock').onchange = (e) => {
+                state.settings.keepZeroStockOnWheel = e.target.checked;
+                saveToLocalStorage();
+                syncUIFromState();
                 drawWheel();
             };
 
